@@ -1,0 +1,30 @@
+//
+//  PrefixHeader.pch
+//  ryyc
+//
+//  Created by 吴世宇 on 2017/10/17.
+//  Copyright © 2017年 ruyidao. All rights reserved.
+//
+
+#ifndef PrefixHeader_pch
+#define PrefixHeader_pch
+
+// Include any system framework and library headers here that should be included in all compilation units.
+// You will also need to set the Prefix Header build setting of one or more of your targets to reference this file.
+
+#import "AppDelegate.h"
+#import "RYDTabBarController.h"
+
+
+#import "Masonry.h"
+#import "SVProgressHUD.h"
+
+
+
+/**  常用宏*/
+#import "CommonValue.h"
+#import "WSYCommonValue.h"
+
+
+
+#endif /* PrefixHeader_pch */

@@ -1,0 +1,202 @@
+//
+//  RYDADViewController.m
+//  RuYiDao
+//
+//  Created by mini on 17/1/17.
+//  Copyright © 2017年 ruyidao. All rights reserved.
+//
+
+#import "RYDADViewController.h"
+#import <AFNetworking/AFNetworking.h>
+#import <MJExtension/MJExtension.h>
+#import <UIImageView+WebCache.h>
+#import "RYDTabBarController.h"
+//#import "RYDPurchseSupermarketViewController.h"
+
+
+@interface RYDADViewController ()<UITabBarControllerDelegate>
+@property (weak, nonatomic)  UIButton *jumpButton;
+@property (weak, nonatomic)  UIView *adView;
+@property (nonatomic, weak) NSTimer *timer;
+
+
+/*
+ "aad_url":"跳转地址",
+ "aad_filepath":"图片路径",
+ "aad_title":"跳转后的标题",
+ */
+@property(strong,nonatomic) NSString * aad_url ;
+@property(strong,nonatomic) NSString * aad_title ;
+@end
+
+@implementation RYDADViewController
+
+- (void)jump {
+
+    // 进入到主框架界面 修改窗口根控制器
+    
+    RYDTabBarController *tabBarVc = [[RYDTabBarController alloc] init];
+    AppDelegate *app = (AppDelegate *)[[UIApplication  sharedApplication] delegate];
+    tabBarVc.delegate = app;
+    [UIApplication sharedApplication].keyWindow.rootViewController = tabBarVc;
+
+    
+    // 销毁定时器
+    [_timer invalidate];
+}
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    
+    self.view.backgroundColor = [UIColor whiteColor];
+    //隐藏状态栏
+    [self prefersStatusBarHidden];
+
+    // 设置启动图片
+    [self setupLaunchScreenImage];
+    
+    //添加广告界面
+    [self loadAdData];
+    
+    // 创建定时器:把target给强引用
+    _timer = [NSTimer scheduledTimerWithTimeInterval:1 target:self selector:@selector(timeChange) userInfo:nil repeats:YES];
+    
+}
+- (BOOL)prefersStatusBarHidden
+{
+    return YES;//隐藏为YES，显示为NO
+}
+// 每隔一秒钟就会调用
+- (void)timeChange
+{
+    // 按钮文字 如果一闪一闪 就是按钮的样式不对，system
+    static int i = 3;
+    i--;
+    // 修改按钮文字
+    [_jumpButton setTitle:[NSString stringWithFormat:@"跳过 (%d)",i] forState:UIControlStateNormal];
+    
+    if (i < 0) { // 3秒过完
+        [self jump];
+    }
+    
+}
+
+// 加载广告数据
+- (void)loadAdData
+{
+    NSString *account ;
+    NSString *psw ;
+    if ([GCAccountTool account].uid.length ) {
+        account = [GCAccountTool account].uid;
+        psw = [GCAccountTool account].password;
+    } else {//做为nil判断
+        
+        account = @"";
+        psw = @"";
+    }
+
+    [HttpRequestTool httpPOST:[NSString stringWithFormat:@"%@home/startup",kURL] parameters:nil progress:nil success:^(NSURLSessionDataTask *task, id responseObject) {
+        // 成功获取到数据
+        NSDictionary *data = responseObject[@"data"] ;
+        NSDictionary *campaign = data[@"advertise"];
+        if (![campaign isKindOfClass:[NSNull class]]) {
+
+            UIImageView *adView = [[UIImageView alloc] init];
+            adView.frame = CGRectMake(0, 0, SCREEN_W, SCREEN_H);
+            adView.userInteractionEnabled = YES;
+            /*
+             "aad_url":"跳转地址",
+             "aad_filepath":"图片路径",
+             "aad_title":"跳转后的标题",
+             */
+            self.aad_url = campaign[@"a_url"];
+            self.aad_title = campaign[@"a_title"];
+
+            AccountManager *userManager = [GCAccountTool account];
+            userManager.aad_title = campaign[@"a_title"];
+            userManager.aad_url = campaign[@"a_url"];
+            [GCAccountTool saveAccount:userManager];
+            
+            // 添加点按手势
+            UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tap)];
+            [adView addGestureRecognizer:tap];
+            
+
+            // 加载网络图片
+            [adView sd_setImageWithURL:[NSURL URLWithString:[NSString stringWithFormat:@"%@",campaign[@"a_pic"]]]];
+            [_adView addSubview:adView];
+            
+        }
+    } failure:^(NSURLSessionDataTask *task, NSError *error) {
+        
+    }];
+}
+
+// 点击广告图片就会调用
+- (void)tap
+{
+    
+    AccountManager *accountManager = [GCAccountTool account];
+    accountManager.is_ClickAd = YES;//是否点击了广告
+    [GCAccountTool saveAccount:accountManager];
+    
+    // 销毁定时器
+    [_timer invalidate];
+    
+    // 进入到主框架界面 修改窗口根控制器
+    RYDTabBarController *tabBarVc = [[RYDTabBarController alloc] init];
+    AppDelegate *app = (AppDelegate *)[[UIApplication  sharedApplication] delegate];
+    tabBarVc.delegate = app;
+    [UIApplication sharedApplication].keyWindow.rootViewController = tabBarVc;
+
+   
+
+}
+
+// 设置启动图片
+- (void)setupLaunchScreenImage
+{
+    //添加广告页面底部的图片;
+    UIImageView *launchImageView = [[UIImageView alloc] init];
+    launchImageView.frame = CGRectMake(0, 0, SCREEN_W, SCREEN_H);
+    if (iPhone6P) {
+        launchImageView.image = [UIImage imageNamed:@"LaunchImage-800-Portrait-736h@3x"];
+    } else if (iPhone6) {
+        launchImageView.image = [UIImage imageNamed:@"LaunchImage-800-667h"];
+    } else if (iPhone5) {
+        launchImageView.image = [UIImage imageNamed:@"LaunchImage-700-568h"];
+    } else if (iPhone4) {
+        launchImageView.image = [UIImage imageNamed:@"LaunchImage"];
+    }
+
+    [self.view addSubview:launchImageView];
+    
+    //添加广告的IimageV
+    UIView *adView = [[UIView alloc] init];
+    adView.frame = CGRectMake(0, 0, SCREEN_W, SCREEN_H);
+    [self.view addSubview:adView];
+    self.adView = adView;
+    
+
+    //添加跳转按钮
+    UIButton *jumpButton = [UIButton buttonWithType:UIButtonTypeCustom];
+    [jumpButton setTitle:@"跳过 (3)" forState:UIControlStateNormal];
+    [jumpButton addTarget:self action:@selector(jump) forControlEvents:UIControlEventTouchUpInside];
+    jumpButton.titleLabel.font = [UIFont systemFontOfSize:12 weight:0.5];
+    [jumpButton setBackgroundImage:[UIImage ImageFromColor:[UIColor colorWithRed:0 green:0 blue:0 alpha:0.8] withWidth:60 withHeight:30] forState:UIControlStateNormal];
+    jumpButton.layer.cornerRadius = 15;
+    jumpButton.layer.masksToBounds = YES;
+    [self.view addSubview:jumpButton];
+    self.jumpButton = jumpButton;
+    
+    [jumpButton makeConstraints:^(MASConstraintMaker *make) {
+        make.width.equalTo(60);
+        make.height.equalTo(30);
+        make.right.equalTo(self.view.right).offset(-15);
+        make.top.equalTo(self.view.top).offset(30);
+    }];
+}
+
+
+
+@end

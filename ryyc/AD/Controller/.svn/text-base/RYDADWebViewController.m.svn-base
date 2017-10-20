@@ -1,0 +1,255 @@
+//
+//  RYDADWebViewController.m
+//  RuYiDao
+//
+//  Created by mini on 17/2/10.
+//  Copyright © 2017年 ruyidao. All rights reserved.
+//
+
+#import "RYDADWebViewController.h"
+#import "UIView+frame.h"
+#import <JavaScriptCore/JavaScriptCore.h>
+#import "InteractionOfH5.h"
+#import "RYDShareContentViewController.h"
+#import "RYDAboutController.h"
+
+
+@interface RYDADWebViewController ()<UIWebViewDelegate>
+
+@property(nonatomic,strong) UIWebView *webView;
+
+@end
+
+@implementation RYDADWebViewController
+
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    
+    VARIFY_WITH_URL(self.aad_url);
+    
+    if (self.aad_title == nil) {
+        self.aad_title = @"";
+    }
+    
+    self.navigationItem.title = self.aad_title;
+    
+    [SVProgressHUD showWithStatus:@"loading..."];
+    //SVProgressHUD.defaultMaskType = SVProgressHUDMaskTypeBlack;
+    
+    //判断有没有网络
+    [ZJHReachability LGwithSuccessBlock:^(NSString *status) {
+        if ([status isEqualToString:@"无连接"]) {
+            //没有网络的情况下提醒
+            [HttpRequestTool noNetworking];
+            
+        }
+    }];
+    
+    [SVProgressHUD showWithStatus:@"loading..."];
+    //SVProgressHUD.defaultMaskType = SVProgressHUDMaskTypeBlack;
+
+    [self loadWebView];
+    
+}
+
+
+#pragma mark -懒加载
+-(UIWebView *)webView
+{
+    if (_webView == nil) {
+        self.automaticallyAdjustsScrollViewInsets = NO;//头部的导航栏
+        UIWebView *webView = [[UIWebView alloc] initWithFrame:CGRectMake(0, 0, SCREEN_W, SCREEN_H - 64)];
+        webView.backgroundColor = UIColorFromHex(blackLineC);
+        _webView = webView;
+        //添加下拉刷新
+        [self setUpHeaderRefreshView];
+        
+        [self.view addSubview:webView];
+    }
+    return _webView;
+}
+#pragma mark - 添加下拉控件
+-(void)setUpHeaderRefreshView
+{
+    // 下拉刷新
+    __weak RYDADWebViewController *weakSelf = self;
+    MJRefreshHeader *header = [XSHeaderRefresh headerWithRefreshingBlock:^{
+        NSURL *url = [NSURL URLWithString:self.webView.request.URL.absoluteString];
+        NSURLRequest *request = [NSURLRequest requestWithURL:url];
+        [weakSelf.webView loadRequest:request];
+    }];
+    header.automaticallyChangeAlpha = YES;
+    self.webView.scrollView.mj_header = header;
+}
+
+-(void)viewWillAppear:(BOOL)animated
+{
+    [super viewWillAppear:animated];
+    
+    //设置导航的风格
+    [self setUpNavigationStyle];
+    
+    //添加右边的分享按钮
+    [self setUpShareBtn];
+    
+    [MobClick beginLogPageView:[NSString stringWithFormat:@"%@",self]];//("PageOne"为页面名称，可自定义)
+    
+}
+
+- (void)viewWillDisappear:(BOOL)animated
+{
+    [super viewWillDisappear:animated];
+    [SVProgressHUD dismiss];
+    [MobClick endLogPageView:[NSString stringWithFormat:@"%@",self]];
+}
+#pragma mark -  添加导航栏的风格
+-(void)setUpNavigationStyle
+{
+    NSMutableDictionary *dict = [NSMutableDictionary dictionary];
+    dict[NSFontAttributeName] = [UIFont systemFontOfSize:20 weight:0];
+    dict[NSForegroundColorAttributeName] = UIColorFromHex(whitec);
+    [self.navigationController.navigationBar setTitleTextAttributes:dict];
+    //去掉导航与自定之间发白色分割线
+    UIImage *image = [UIImage ImageFromColor:UIColorFromHex(redc) withWidth:SCREEN_W withHeight:64];
+    [self.navigationController.navigationBar setBackgroundImage:image forBarMetrics:UIBarMetricsDefault];
+    [self.navigationController.navigationBar setShadowImage:[[UIImage alloc] init]];
+    
+    self.navigationController.navigationBar.barStyle = UIBarStyleBlack;
+    
+    //添加左边的返回按钮
+    UIButton *backBtn = [UIButton buttonWithType:UIButtonTypeCustom];
+    [backBtn setImage:[UIImage imageNamed:@"bai_huitui"] forState:UIControlStateNormal];
+    [backBtn addTarget:self action:@selector(backBtnClick) forControlEvents:UIControlEventTouchUpInside];
+    backBtn.frame = CGRectMake(0, 0, 40, 40);
+    UIView *btnView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 44, 44)];
+    [btnView addSubview:backBtn];
+    UIBarButtonItem *buttonItem = [[UIBarButtonItem alloc] initWithCustomView:btnView];
+    self.navigationItem.leftBarButtonItem = buttonItem;
+}
+
+#pragma mark -返回按钮操作
+-(void)backBtnClick
+{
+    if (self.webView.canGoBack) {
+        [self.webView goBack];
+    } else {
+        [self.navigationController popViewControllerAnimated:YES];
+    }
+}
+
+
+-(void)loadWebView
+{
+    NSString *urlName = [NSString stringWithFormat:@"%@",self.aad_url];
+    urlName = [urlName stringByReplacingOccurrencesOfString:@" " withString:@""];
+    NSURL *url = [NSURL URLWithString:urlName];
+    NSURLRequest *request = [NSURLRequest requestWithURL:url];
+    [self.webView setScalesPageToFit:YES];//屏幕自适应
+    self.webView.delegate = self;
+    
+    [self.webView loadRequest:request];
+}
+
+//html页面的每个按钮点击时触发事件
+- (BOOL)webView:(UIWebView *)webView shouldStartLoadWithRequest:(NSURLRequest *)request navigationType:(UIWebViewNavigationType)navigationType{
+    
+    //    NSString * urlStr = request.URL.absoluteString ;
+    
+    //    NSString *urlstr = request.URL.abs
+    //    Log(@"url~~:%@",urlStr);
+    
+    return YES;
+    
+}
+
+
+
+-(void)webViewDidFinishLoad:(UIWebView *)webView
+{
+    //网页加载完成调用此方法
+    
+    [SVProgressHUD dismiss];
+    
+    // Disable user selection//去除长按复制效果
+    [webView stringByEvaluatingJavaScriptFromString:@"document.documentElement.style.webkitUserSelect='none';"];
+    // Disable callout
+    [webView stringByEvaluatingJavaScriptFromString:@"document.documentElement.style.webkitTouchCallout='none';"];
+    
+    //首先创建JSContext 对象（此处通过当前webView的键获取到jscontext）
+    JSContext *context=[webView valueForKeyPath:@"documentView.webView.mainFrame.javaScriptContext"];
+    
+    //第二种情况，js是通过对象调用的，我们假设js里面有一个对象 testobject 在调用方法
+    //首先创建我们新建类的对象，将他赋值给js的对象
+    InteractionOfH5 *InteractionJO =  [InteractionOfH5 new] ;
+    context[@"Youcai"]=InteractionJO;
+    
+    
+    //传制定的参数过去
+    //    InteractionJO.webView = self.
+    InteractionJO.navagationVc = self.navigationController;
+    InteractionJO.tabBarVc = self.tabBarController;
+    InteractionJO.mainVC = self;
+    InteractionJO.context = context;
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+    [self.webView.scrollView.mj_header endRefreshing];
+    
+    
+    
+    
+}
+
+#pragma mark - 添加分享按钮
+-(void)setUpShareBtn
+{
+    UIBarButtonItem *rightBtn = [ UIBarButtonItem  barButton:[UIImage imageNamed:@"fenxian"] hightImage:[UIImage imageNamed:@"fenxian"] target:self action:@selector(jumpShareToOtherApp)];
+    self.navigationItem.rightBarButtonItem = rightBtn;
+}
+#pragma mark - 添加分享界面
+-(void)jumpShareToOtherApp
+{
+    
+    //首先创建JSContext 对象（此处通过当前webView的键获取到jscontext）
+    JSContext *context=[self.webView valueForKeyPath:@"documentView.webView.mainFrame.javaScriptContext"];
+    
+    //oc调用json方法
+    NSString *alertJS=@"share_info"; //准备执行的js代码
+    JSValue *value = [context evaluateScript:alertJS];//通过oc方法调用js的alert
+    NSDictionary *value1 =  [value toDictionary];
+    
+    if (value1 != nil) {//不等于nil,就是有值 添加分享按钮
+        
+        
+        //分享
+        RYDShareContentViewController *vc=[[RYDShareContentViewController alloc]init];
+        vc.modalPresentationStyle = UIModalPresentationOverCurrentContext;
+        vc.shareUrl = value1[@"url"];
+        vc.imageUrl = value1[@"image"];
+        vc.contentStr = value1[@"title"];
+        vc.titleStr = value1[@"content"];
+        [self presentViewController:vc animated:NO completion:^{
+            
+            
+        }];
+        
+    }
+    
+    
+    
+}
+
+
+- (void)webView:(UIWebView *)webView didFailLoadWithError:(NSError *)error{
+    
+    [SVProgressHUD dismiss];
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = NO;
+    [self.webView.scrollView.mj_header endRefreshing];
+    
+}
+- (void)webViewDidStartLoad:(UIWebView *)webView{
+    
+    [UIApplication sharedApplication].networkActivityIndicatorVisible = YES;
+    
+}
+
+@end

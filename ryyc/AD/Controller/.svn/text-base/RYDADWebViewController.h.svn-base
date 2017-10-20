@@ -1,0 +1,14 @@
+//
+//  RYDADWebViewController.h
+//  RuYiDao
+//
+//  Created by mini on 17/2/10.
+//  Copyright © 2017年 ruyidao. All rights reserved.
+//
+#import <UIKit/UIKit.h>
+
+
+@interface RYDADWebViewController : UIViewController
+@property(strong,nonatomic) NSString * aad_url ;
+@property(strong,nonatomic) NSString * aad_title ;
+@end
